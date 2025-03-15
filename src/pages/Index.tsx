@@ -1,5 +1,8 @@
 
 import Calculator from '@/components/Calculator/Calculator';
+import { Button } from '@/components/ui/button';
+import { downloadCalculationsCSV } from '@/lib/api';
+import { Download } from 'lucide-react';
 
 const Index = () => {
   return (
@@ -20,6 +23,17 @@ const Index = () => {
         <main className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
           <Calculator />
         </main>
+
+        <div className="flex justify-center mt-8">
+          <Button 
+            onClick={downloadCalculationsCSV}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Download size={16} />
+            Download Calculation History
+          </Button>
+        </div>
 
         <footer className="pt-8 text-center text-sm text-muted-foreground">
           <p>Built with modern design principles</p>
