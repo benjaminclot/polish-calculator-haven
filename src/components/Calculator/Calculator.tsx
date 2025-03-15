@@ -5,7 +5,7 @@ import Keypad from './Keypad';
 import Stack from './Stack';
 import { Operation, operations } from '@/lib/calculator';
 import { cn } from '@/lib/utils';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 const Calculator = () => {
   const [input, setInput] = useState<string>('');
