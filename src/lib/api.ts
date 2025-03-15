@@ -37,3 +37,8 @@ export const calculateOperation = async (
     throw error;
   }
 };
+
+// Download calculations history as CSV
+export const downloadCalculationsCSV = () => {
+  window.open(`${API_URL}/calculations/csv`, '_blank');
+};

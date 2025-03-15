@@ -1,8 +1,14 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Union, Literal
+import sqlite3
+import io
+import csv
+import pandas as pd
+from datetime import datetime
 
 app = FastAPI()
 
@@ -15,6 +21,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Create SQLite database and table if they don't exist
+def init_db():
+    conn = sqlite3.connect('calculator.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS calculations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT,
+        stack_before TEXT,
+        operation TEXT,
+        stack_after TEXT,
+        error TEXT
+    )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Initialize the database on startup
+init_db()
+
 class CalculationRequest(BaseModel):
     stack: List[float]
     operation: str
@@ -22,6 +48,23 @@ class CalculationRequest(BaseModel):
 class CalculationResponse(BaseModel):
     stack: List[float]
     error: Optional[str] = None
+
+def log_calculation(stack_before, operation, stack_after, error=None):
+    """Log calculation to SQLite database"""
+    conn = sqlite3.connect('calculator.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO calculations (timestamp, stack_before, operation, stack_after, error) VALUES (?, ?, ?, ?, ?)",
+        (
+            datetime.now().isoformat(),
+            str(stack_before),
+            operation,
+            str(stack_after),
+            error
+        )
+    )
+    conn.commit()
+    conn.close()
     
 @app.get("/")
 def read_root():
@@ -32,6 +75,7 @@ def calculate(request: CalculationRequest):
     try:
         stack = request.stack
         operation = request.operation
+        stack_before = stack.copy()  # Store the initial stack for logging
         
         # Ensure we have sufficient operands
         if operation in ['+', '-', '×', '÷', '^'] and len(stack) < 2:
@@ -55,7 +99,9 @@ def calculate(request: CalculationRequest):
         elif operation == '÷':
             a, b = stack[-2], stack[-1]
             if b == 0:
-                return CalculationResponse(stack=stack, error="Division by zero")
+                error = "Division by zero"
+                log_calculation(stack_before, operation, stack, error)
+                return CalculationResponse(stack=stack, error=error)
             result = a / b
             stack = stack[:-2] + [result]
         elif operation == '^':
@@ -65,16 +111,44 @@ def calculate(request: CalculationRequest):
         elif operation == '√':
             a = stack[-1]
             if a < 0:
-                return CalculationResponse(stack=stack, error="Cannot take square root of negative number")
+                error = "Cannot take square root of negative number"
+                log_calculation(stack_before, operation, stack, error)
+                return CalculationResponse(stack=stack, error=error)
             result = a ** 0.5
             stack = stack[:-1] + [result]
         elif operation == 'C':
             stack = []
         else:
             raise HTTPException(status_code=400, detail=f"Unknown operation: {operation}")
+        
+        # Log the calculation to the database
+        log_calculation(stack_before, operation, stack)
             
         return CalculationResponse(stack=stack)
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/calculations/csv")
+def get_calculations_csv():
+    """Return all calculations as a CSV file"""
+    try:
+        # Connect to the database and get all calculations
+        conn = sqlite3.connect('calculator.db')
+        df = pd.read_sql_query("SELECT * FROM calculations", conn)
+        conn.close()
+        
+        # Create a CSV file in memory
+        output = io.StringIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+        
+        # Return as a downloadable response
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=calculations.csv"}
+        )
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
