@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from typing import List, Optional, Union, Literal
 import sqlite3
 import io
-import csv
 import pandas as pd
 from datetime import datetime
 import os
