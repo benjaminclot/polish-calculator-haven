@@ -9,6 +9,7 @@ import io
 import csv
 import pandas as pd
 from datetime import datetime
+import os
 
 app = FastAPI()
 
@@ -21,9 +22,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Define path to database file in the data directory
+DB_PATH = os.path.join('data', 'calculator.db')
+
+# Create data directory if it doesn't exist
+os.makedirs('data', exist_ok=True)
+
 # Create SQLite database and table if they don't exist
 def init_db():
-    conn = sqlite3.connect('calculator.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS calculations (
@@ -51,7 +58,7 @@ class CalculationResponse(BaseModel):
 
 def log_calculation(stack_before, operation, stack_after, error=None):
     """Log calculation to SQLite database"""
-    conn = sqlite3.connect('calculator.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO calculations (timestamp, stack_before, operation, stack_after, error) VALUES (?, ?, ?, ?, ?)",
@@ -135,7 +142,7 @@ def get_calculations_csv():
     """Return all calculations as a CSV file"""
     try:
         # Connect to the database and get all calculations
-        conn = sqlite3.connect('calculator.db')
+        conn = sqlite3.connect(DB_PATH)
         df = pd.read_sql_query("SELECT * FROM calculations", conn)
         conn.close()
         
