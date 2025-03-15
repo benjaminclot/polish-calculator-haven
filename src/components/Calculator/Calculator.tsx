@@ -6,12 +6,14 @@ import Stack from './Stack';
 import { Operation, operations } from '@/lib/calculator';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { calculateOperation } from '@/lib/api';
 
 const Calculator = () => {
   const [input, setInput] = useState<string>('');
   const [stack, setStack] = useState<number[]>([]);
   const [hasDecimal, setHasDecimal] = useState<boolean>(false);
   const [lastOperation, setLastOperation] = useState<string | null>(null);
+  const [isCalculating, setIsCalculating] = useState<boolean>(false);
 
   // Handle number input
   const handleNumberClick = (num: number) => {
@@ -42,7 +44,7 @@ const Calculator = () => {
   };
 
   // Handle operation execution
-  const handleOperationClick = (operation: Operation) => {
+  const handleOperationClick = async (operation: Operation) => {
     if (operation.type === 'clear') {
       setStack([]);
       setInput('');
@@ -68,8 +70,20 @@ const Calculator = () => {
     }
     
     try {
-      const newStack = operation.execute(currentStack);
-      setStack(newStack);
+      setIsCalculating(true);
+      
+      // Call the API to perform the calculation
+      const result = await calculateOperation(currentStack, operation.symbol);
+      
+      if (result.error) {
+        toast.error("Operation error", {
+          description: result.error,
+          duration: 3000,
+        });
+        return;
+      }
+      
+      setStack(result.stack);
       setLastOperation(operation.symbol);
       
       // Show operation toast
@@ -77,10 +91,12 @@ const Calculator = () => {
         duration: 1500,
       });
     } catch (error) {
-      toast.error("Operation error", {
+      toast.error("API Error", {
         description: (error as Error).message,
         duration: 3000,
       });
+    } finally {
+      setIsCalculating(false);
     }
   };
 
@@ -108,6 +124,7 @@ const Calculator = () => {
           value={input} 
           stack={stack} 
           className="calculator-panel-shadow"
+          isLoading={isCalculating}
         />
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -122,6 +139,7 @@ const Calculator = () => {
               hasDecimal={hasDecimal}
               stack={stack}
               operations={operations}
+              disabled={isCalculating}
             />
           </div>
           
